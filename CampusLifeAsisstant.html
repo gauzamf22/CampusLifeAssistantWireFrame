@@ -228,6 +228,12 @@
             font-size: 2em;
             margin-bottom: 10px;
         }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -410,7 +416,7 @@
                     <option value="IDR">IDR</option>
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
-                </select>
+            </select>
             </div>
             <button class="btn" onclick="saveSettings()">Simpan Pengaturan</button>
             <button class="btn" onclick="backupData()">Backup Data</button>
@@ -419,11 +425,54 @@
     </div>
 
     <script>
-        // Data Storage
-        let notes = JSON.parse(localStorage.getItem('notes')) || [];
-        let studySessions = JSON.parse(localStorage.getItem('studySessions')) || [];
-        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        // Data Storage using Persistent Storage API
+        let notes = [];
+        let studySessions = [];
+        let expenses = [];
+        let tasks = [];
+        let settings = { userName: '', currency: 'IDR' };
+
+        // Storage helpers
+        async function loadData(key) {
+            try {
+                const result = await window.storage.get(key, false);
+                return result ? JSON.parse(result.value) : null;
+            } catch (error) {
+                console.log('Key not found:', key);
+                return null;
+            }
+        }
+
+        async function saveData(key, data) {
+            try {
+                await window.storage.set(key, JSON.stringify(data), false);
+                return true;
+            } catch (error) {
+                console.error('Error saving data:', error);
+                return false;
+            }
+        }
+
+        async function deleteData(key) {
+            try {
+                await window.storage.delete(key, false);
+            } catch (error) {
+                console.error('Error deleting data:', error);
+            }
+        }
+
+        // Initialize data
+        async function initializeApp() {
+            notes = await loadData('campus_notes') || [];
+            studySessions = await loadData('campus_study') || [];
+            expenses = await loadData('campus_expenses') || [];
+            tasks = await loadData('campus_tasks') || [];
+            settings = await loadData('campus_settings') || { userName: '', currency: 'IDR' };
+            
+            // Load settings to form
+            document.getElementById('userName').value = settings.userName;
+            document.getElementById('currency').value = settings.currency;
+        }
 
         // Navigation
         function showMain() {
@@ -438,18 +487,18 @@
             if (section === 'reports') updateReport();
         }
 
-        function showSubSection(section) {
+        async function showSubSection(section) {
             document.querySelectorAll('.content-area').forEach(el => el.classList.remove('active'));
             document.getElementById(section).classList.add('active');
             
-            if (section === 'notes') displayNotes();
-            if (section === 'study') displayStudySessions();
-            if (section === 'expense') { displayExpenses(); displayExpenseChart(); }
-            if (section === 'tasks') displayTasks();
+            if (section === 'notes') await displayNotes();
+            if (section === 'study') await displayStudySessions();
+            if (section === 'expense') { await displayExpenses(); await displayExpenseChart(); }
+            if (section === 'tasks') await displayTasks();
         }
 
         // Notes Manager
-        function addNote() {
+        async function addNote() {
             const subject = document.getElementById('noteSubject').value;
             const content = document.getElementById('noteContent').value;
             const date = document.getElementById('noteDate').value;
@@ -460,16 +509,16 @@
             }
             
             notes.push({ id: Date.now(), subject, content, date });
-            localStorage.setItem('notes', JSON.stringify(notes));
+            await saveData('campus_notes', notes);
             
             document.getElementById('noteSubject').value = '';
             document.getElementById('noteContent').value = '';
             document.getElementById('noteDate').value = '';
             
-            displayNotes();
+            await displayNotes();
         }
 
-        function displayNotes() {
+        async function displayNotes() {
             const list = document.getElementById('notesList');
             list.innerHTML = notes.map(note => `
                 <div class="list-item">
@@ -481,14 +530,14 @@
             `).join('');
         }
 
-        function deleteNote(id) {
+        async function deleteNote(id) {
             notes = notes.filter(n => n.id !== id);
-            localStorage.setItem('notes', JSON.stringify(notes));
-            displayNotes();
+            await saveData('campus_notes', notes);
+            await displayNotes();
         }
 
         // Study Planner
-        function addStudySession() {
+        async function addStudySession() {
             const subject = document.getElementById('studySubject').value;
             const date = document.getElementById('studyDate').value;
             const hours = parseFloat(document.getElementById('studyHours').value);
@@ -499,16 +548,16 @@
             }
             
             studySessions.push({ id: Date.now(), subject, date, hours, completed: false });
-            localStorage.setItem('studySessions', JSON.stringify(studySessions));
+            await saveData('campus_study', studySessions);
             
             document.getElementById('studySubject').value = '';
             document.getElementById('studyDate').value = '';
             document.getElementById('studyHours').value = '';
             
-            displayStudySessions();
+            await displayStudySessions();
         }
 
-        function displayStudySessions() {
+        async function displayStudySessions() {
             const list = document.getElementById('studyList');
             list.innerHTML = studySessions.map(session => `
                 <div class="list-item ${session.completed ? 'completed' : ''}">
@@ -521,21 +570,21 @@
             `).join('');
         }
 
-        function toggleStudySession(id) {
+        async function toggleStudySession(id) {
             const session = studySessions.find(s => s.id === id);
             if (session) session.completed = !session.completed;
-            localStorage.setItem('studySessions', JSON.stringify(studySessions));
-            displayStudySessions();
+            await saveData('campus_study', studySessions);
+            await displayStudySessions();
         }
 
-        function deleteStudySession(id) {
+        async function deleteStudySession(id) {
             studySessions = studySessions.filter(s => s.id !== id);
-            localStorage.setItem('studySessions', JSON.stringify(studySessions));
-            displayStudySessions();
+            await saveData('campus_study', studySessions);
+            await displayStudySessions();
         }
 
         // Expense Tracker
-        function addExpense() {
+        async function addExpense() {
             const date = document.getElementById('expenseDate').value;
             const category = document.getElementById('expenseCategory').value;
             const amount = parseFloat(document.getElementById('expenseAmount').value);
@@ -546,16 +595,16 @@
             }
             
             expenses.push({ id: Date.now(), date, category, amount });
-            localStorage.setItem('expenses', JSON.stringify(expenses));
+            await saveData('campus_expenses', expenses);
             
             document.getElementById('expenseDate').value = '';
             document.getElementById('expenseAmount').value = '';
             
-            displayExpenses();
-            displayExpenseChart();
+            await displayExpenses();
+            await displayExpenseChart();
         }
 
-        function displayExpenses() {
+        async function displayExpenses() {
             const list = document.getElementById('expenseList');
             list.innerHTML = expenses.map(exp => `
                 <div class="list-item">
@@ -567,7 +616,7 @@
             `).join('');
         }
 
-        function displayExpenseChart() {
+        async function displayExpenseChart() {
             const categoryTotals = {};
             expenses.forEach(exp => {
                 categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
@@ -585,15 +634,15 @@
             `).join('');
         }
 
-        function deleteExpense(id) {
+        async function deleteExpense(id) {
             expenses = expenses.filter(e => e.id !== id);
-            localStorage.setItem('expenses', JSON.stringify(expenses));
-            displayExpenses();
-            displayExpenseChart();
+            await saveData('campus_expenses', expenses);
+            await displayExpenses();
+            await displayExpenseChart();
         }
 
         // Task Organizer
-        function addTask() {
+        async function addTask() {
             const title = document.getElementById('taskTitle').value;
             const deadline = document.getElementById('taskDeadline').value;
             
@@ -603,15 +652,15 @@
             }
             
             tasks.push({ id: Date.now(), title, deadline, completed: false });
-            localStorage.setItem('tasks', JSON.stringify(tasks));
+            await saveData('campus_tasks', tasks);
             
             document.getElementById('taskTitle').value = '';
             document.getElementById('taskDeadline').value = '';
             
-            displayTasks();
+            await displayTasks();
         }
 
-        function displayTasks() {
+        async function displayTasks() {
             const list = document.getElementById('tasksList');
             const sortedTasks = [...tasks].sort((a, b) => {
                 if (a.completed !== b.completed) return a.completed ? 1 : -1;
@@ -629,17 +678,17 @@
             `).join('');
         }
 
-        function toggleTask(id) {
+        async function toggleTask(id) {
             const task = tasks.find(t => t.id === id);
             if (task) task.completed = !task.completed;
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-            displayTasks();
+            await saveData('campus_tasks', tasks);
+            await displayTasks();
         }
 
-        function deleteTask(id) {
+        async function deleteTask(id) {
             tasks = tasks.filter(t => t.id !== id);
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-            displayTasks();
+            await saveData('campus_tasks', tasks);
+            await displayTasks();
         }
 
         // Reports
@@ -672,17 +721,17 @@
         }
 
         // Settings
-        function saveSettings() {
+        async function saveSettings() {
             const userName = document.getElementById('userName').value;
             const currency = document.getElementById('currency').value;
-            localStorage.setItem('userName', userName);
-            localStorage.setItem('currency', currency);
+            settings = { userName, currency };
+            await saveData('campus_settings', settings);
             alert('Pengaturan berhasil disimpan!');
         }
 
         function backupData() {
             const data = {
-                notes, studySessions, expenses, tasks,
+                notes, studySessions, expenses, tasks, settings,
                 timestamp: new Date().toISOString()
             };
             const dataStr = JSON.stringify(data, null, 2);
@@ -695,20 +744,30 @@
             alert('Backup berhasil diunduh!');
         }
 
-        function clearAllData() {
+        async function clearAllData() {
             if (confirm('Yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan!')) {
-                localStorage.clear();
+                await deleteData('campus_notes');
+                await deleteData('campus_study');
+                await deleteData('campus_expenses');
+                await deleteData('campus_tasks');
+                await deleteData('campus_settings');
+                
                 notes = [];
                 studySessions = [];
                 expenses = [];
                 tasks = [];
+                settings = { userName: '', currency: 'IDR' };
+                
                 alert('Semua data berhasil dihapus!');
                 showMain();
             }
         }
 
-        // Initialize
-        showMain();
+        // Initialize app on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initializeApp();
+            showMain();
+        });
     </script>
 </body>
 </html>
