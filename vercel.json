@@ -1,15 +1,8 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "CampusLifeAsisstant.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/CampusLifeAsisstant.html"
+      "source": "/(.*)",
+      "destination": "/CampusLifeAsisstant.html"
     }
   ]
 }
